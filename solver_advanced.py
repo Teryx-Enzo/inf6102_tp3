@@ -1,6 +1,7 @@
 from utils import *
 import random
 from copy import deepcopy
+import random
 
 
 from itertools import permutations
@@ -43,17 +44,19 @@ class Individu():
                 self.matrix[mutation_index][dance_mutation_index] = 1
                 change = True
             i+= 1
+
+
     def return_sol(self):
         sol = [self.matrix[i] for i in self.ordre]
 
-        print(sol)
+        #print(sol)
         return np.array(sol)
     
     def scored(self, instance):
 
 
         score = instance.objective_score(Solution(self.return_sol()))
-        print(score)
+        #print(score)
         return score
 
 def crossover(indiv1, indiv2):
@@ -105,14 +108,16 @@ def solve(instance: Instance) -> Solution:
     Returns:
         Solution: the generated solution
     """
-
-    n_dancers, n_costumes = instance.n_dancers, instance.ncostumes
-    matrice_initiale = instance.costumes_choreographies_matrix.copy()
+    intance_temp = deepcopy(instance)
+    n_dancers, n_costumes = intance_temp.n_dancers, instance.ncostumes
+    matrice_initiale = intance_temp.costumes_choreographies_matrix.copy()
     ordre_initial = [i for i in range(len(matrice_initiale))]
-
+    print(type(matrice_initiale))
 
     pop_size = 10
     gen_max = 10
+    p = 0
+    q = 1
 
     population = generate_pop(pop_size, ordre_initial,matrice_initiale,n_dancers,n_costumes)
     
@@ -122,14 +127,38 @@ def solve(instance: Instance) -> Solution:
     #     sol = np.array(x).T
     #     if instance.objective_score(Solution(sol))<best_score:
     #         best_sol,best_score=sol,instance.objective_score(Solution(sol))
-
+    n = len(population)
     for _ in range(gen_max):
+        Q = []
+        
+        print(n)
+        for j in range(n):
+            r = np.random.uniform(0,1)
 
-        for indiv in population:
-            indiv.mutation()
+            if r < p:
+                s1,s2 = np.random.choice(population,2)
+                sprime = crossover(s1,s2)
+
+            elif r < p+q:
+                sprime = deepcopy(random.sample(population, k=1)[0])
+                sprime.mutation()
+
+            else:
+                sprime = deepcopy(np.random.choice(population))
+
+            Q.append(sprime)
+        
+        Pprime = population+Q
+        population = sorted(Pprime,key=lambda x: x.scored(intance_temp), reverse=True)[0:n]
+
+        
 
 
-    pop_finale_sorted = sorted(population, key=lambda x: x.scored(instance), reverse=True)
 
-    best_sol = pop_finale_sorted[0].return_sol()
+    pop_finale_sorted = sorted(population, key=lambda x: x.scored(intance_temp), reverse=True)
+
+    best_sol = np.array(pop_finale_sorted[0].return_sol()).T
+
+
+    
     return Solution(best_sol)

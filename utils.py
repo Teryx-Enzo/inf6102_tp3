@@ -139,6 +139,7 @@ class Instance:
         """
         Checks if a solution is valid
         """
+        sol = Solution(sol.raw)
         return sol.raw.shape==self.costumes_choreographies_matrix.shape \
                and sum(sol.raw.sum(axis=0)<=self.n_dancers)==self.nchoreographies \
                and self.are_choreographies_respected(sol)
