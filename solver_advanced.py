@@ -4,6 +4,8 @@ from copy import deepcopy
 import random
 
 
+from tqdm import tqdm
+
 from itertools import permutations
 
 
@@ -23,7 +25,7 @@ class Individu():
         self.max = max(ordre)
         self.ordre = ordre
         self.matrix = dict()
-        for i,ligne in enumerate(matrix):
+        for i,ligne in enumerate(matrix.T):
             self.matrix[i] = ligne
 
 
@@ -50,7 +52,7 @@ class Individu():
         sol = [self.matrix[i] for i in self.ordre]
 
         #print(sol)
-        return np.array(sol)
+        return np.array(sol).T
     
     def scored(self, instance):
 
@@ -111,16 +113,18 @@ def solve(instance: Instance) -> Solution:
     intance_temp = deepcopy(instance)
     n_dancers, n_costumes = intance_temp.n_dancers, instance.ncostumes
     matrice_initiale = intance_temp.costumes_choreographies_matrix.copy()
-    ordre_initial = [i for i in range(len(matrice_initiale))]
-    print(type(matrice_initiale))
+    
+    ordre_initial = [i for i in range(len(matrice_initiale.T))]
+    print(type(matrice_initiale),matrice_initiale)
 
-    pop_size = 10
-    gen_max = 10
-    p = 0
-    q = 1
+    pop_size = 25
+    gen_max = 2000
+    p = 0.3
+    q = 0.3
 
     population = generate_pop(pop_size, ordre_initial,matrice_initiale,n_dancers,n_costumes)
-    
+
+ 
     # for i,x in enumerate(permutations(instance.choreographies_costumes_matrix)):
     #     if i>500:
     #         break
@@ -128,10 +132,10 @@ def solve(instance: Instance) -> Solution:
     #     if instance.objective_score(Solution(sol))<best_score:
     #         best_sol,best_score=sol,instance.objective_score(Solution(sol))
     n = len(population)
-    for _ in range(gen_max):
+    for _ in tqdm(range(gen_max)):
         Q = []
         
-        print(n)
+
         for j in range(n):
             r = np.random.uniform(0,1)
 
@@ -144,20 +148,23 @@ def solve(instance: Instance) -> Solution:
                 sprime.mutation()
 
             else:
-                sprime = deepcopy(np.random.choice(population))
+                sprime = Individu(sorted(ordre_initial, key=lambda k: random.random()), matrice_initiale, n_dancers, n_costumes)
 
             Q.append(sprime)
         
         Pprime = population+Q
-        population = sorted(Pprime,key=lambda x: x.scored(intance_temp), reverse=True)[0:n]
+        population = sorted(Pprime,key=lambda x: x.scored(intance_temp))[0:n]
 
         
 
 
 
-    pop_finale_sorted = sorted(population, key=lambda x: x.scored(intance_temp), reverse=True)
+    pop_finale_sorted = sorted(population, key=lambda x: x.scored(intance_temp))
 
-    best_sol = np.array(pop_finale_sorted[0].return_sol()).T
+    best_sol, best_score = pop_finale_sorted[0].return_sol(),pop_finale_sorted[0].scored(intance_temp) 
+
+
+    print(type(best_sol),best_sol,best_score)
 
 
     

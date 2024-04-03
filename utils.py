@@ -135,11 +135,11 @@ class Instance:
         return sum([adj_matrix[a,b] for a,b in zip(row_ind,col_ind)]) == len(self.choreography2costume_list)
 
 
-    def is_valid(self,sol:Solution)->bool:
+    def is_valid(self,student_solution:Solution)->bool:
         """
         Checks if a solution is valid
         """
-        sol = Solution(sol.raw)
+        sol=Solution(student_solution.raw)
         return sol.raw.shape==self.costumes_choreographies_matrix.shape \
                and sum(sol.raw.sum(axis=0)<=self.n_dancers)==self.nchoreographies \
                and self.are_choreographies_respected(sol)
@@ -261,7 +261,7 @@ class Instance:
         for i in range(stage_matrix_choreographies.shape[0]):    
             for j in range(stage_matrix_choreographies.shape[1]):   
                 if stage_matrix_choreographies[i,j]>=0:
-                    ax[1].text(j,i, int(stage_matrix_choreographies[i,j]), ha='center', va='center', color='black', fontsize='12',backgroundcolor=(1,1,1,.5))
+                    ax[1].text(j,i, int(stage_matrix_choreographies[i,j])+1, ha='center', va='center', color='black', fontsize='12',backgroundcolor=(1,1,1,.5))
 
         ax[1].set_xticks(np.arange(matrix.shape[1] + 1) - 0.5, minor=True)
         ax[1].set_yticks(np.arange(matrix.shape[0] + 1) - 0.5, minor=True)
@@ -271,6 +271,7 @@ class Instance:
         ax[1].set_yticks(np.arange(stage_matrix.shape[0]))
         ax[1].set_yticklabels(np.arange(stage_matrix.shape[0])+1)
         ax[1].set_xticklabels(np.arange(stage_matrix.shape[1])+1)
+        ax[0].set_xticklabels(np.arange(stage_matrix.shape[1])+1)
         ax[1].set_title('Stage composition')
         ax[1].set_ylabel('Dancers')
         ax[0].set_xlabel('Choreography')
@@ -282,6 +283,7 @@ class Instance:
         ax[0].set_title(f'Solution visualization - total stress {cumulative_count[-1]}')
         ax[3].axis('off')
         ax[2].set_ylim(0)
+        ax[2].set_xticklabels(np.arange(stage_matrix.shape[1])+1)
         plt.tight_layout()
         os.makedirs('visualization',exist_ok=True)
         plt.savefig('visualization/'+self.filepath.split(os.sep)[-1].split('.')[0]+'.png')
