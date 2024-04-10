@@ -93,36 +93,40 @@ def solve(instance: Instance) -> Solution:
             operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))] # [encodage d'opération, score]
                                     for s in neighborhoods[k](sol)]
             
-            optimal_operation, optimal_score = random.choice(operations_and_scores)
+            optimal_operation, _ = random.choice(operations_and_scores)
 
+            new_sol = deepcopy(sol)
             if k == 0: # permutation des danses
                 dance1, dance2 = optimal_operation
-                new_sol = deepcopy(sol)
                 new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
                 new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
             else:      # costume en coulisses
                 row, col, flip = optimal_operation
-                new_sol = deepcopy(sol)
                 new_sol.raw[row, col] = 1 - flip
             
 
-            # Hill climbing avec dance_permutation_neighborhood jusqu'à convergence
-            hc_converged = False
-            while not hc_converged:
-                hc_operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))]
-                                            for s in dance_permutation_neighborhood(new_sol)]
+            # VND à partir de new_sol pour obtenir un minimum local pour tous les voisinages
+            kvnd = 0
+            while kvnd < 2:
+                vnd_operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))]
+                                            for s in neighborhoods[kvnd](new_sol)]
                 
-                best_neighbor_operation, best_neighbor_score = hc_operations_and_scores[np.argmin([o_s[1] for o_s in hc_operations_and_scores])]
+                vnd_optimal_operation, _ = vnd_operations_and_scores[np.argmin([o_s[1] for o_s in vnd_operations_and_scores])]
 
-                if best_neighbor_score < optimal_score:
-                    optimal_score = best_neighbor_score
-
-                    dance1, dance2 = best_neighbor_operation
-                    new_sol = deepcopy(new_sol)
-                    new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
-                    new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
+                vnd_new_sol = deepcopy(new_sol)
+                if kvnd == 0: # permutation des danses
+                    dance1, dance2 = vnd_optimal_operation
+                    vnd_new_sol.raw[:, [dance2, dance1]] = vnd_new_sol.raw[:, [dance1, dance2]]
+                    vnd_new_sol.choreographies_order[dance2], vnd_new_sol.choreographies_order[dance1] = vnd_new_sol.choreographies_order[dance1], vnd_new_sol.choreographies_order[dance2]
+                else:      # costume en coulisses
+                    row, col, flip = vnd_optimal_operation
+                    vnd_new_sol.raw[row, col] = 1 - flip
+                
+                if instance.objective_score(vnd_new_sol) < instance.objective_score(new_sol):
+                    new_sol = vnd_new_sol
+                    kvnd = 0
                 else:
-                    hc_converged = True
+                    kvnd += 1
             
 
             # s,k = neighborhood_change(s, s', k)
