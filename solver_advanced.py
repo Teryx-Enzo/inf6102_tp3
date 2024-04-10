@@ -1,8 +1,8 @@
 from utils import *
 import random
 from copy import deepcopy
+from time import time
 import random
-from tqdm import tqdm
 from itertools import combinations
 
 
@@ -42,7 +42,7 @@ def backstage_neighborhood(sol: CustomSolution):
     admissible_indices = [coord + [0]
                           for coord in np.transpose(np.nonzero((np.sum(cc_mat, axis=0) - sol.n_dancers)*(1-cc_mat))).tolist()]
 
-    # 1 facultatifs à l'aide de self.choreographies_order
+    # On ajoute les indices des costumes facultatifs pour chaque chorégraphie (costumes en coulisse)
     for i, c in enumerate(sol.choreographies_order):
         admissible_indices += [[idx, i, 1] for idx in np.nonzero((1- sol.initial_cc_mat[:, c]) * cc_mat[:, i])[0].tolist()]
 
@@ -67,39 +67,72 @@ def solve(instance: Instance) -> Solution:
     Returns:
         Solution: the generated solution
     """
+    # Métriques de temps d'exécution
+    t0 = time()
+    iteration_duration = 0
+
+    if 'A' in instance.filepath:
+        time_credit = 120
+    elif 'D' in instance.filepath:
+        time_credit = 900
+    else:
+        time_credit = 600
 
     n_dancers, n_costumes = instance.n_dancers, instance.ncostumes
     sol = CustomSolution(instance.costumes_choreographies_matrix, n_dancers = n_dancers)
 
     neighborhoods = [dance_permutation_neighborhood, backstage_neighborhood]
 
-    k = 0
+    while ((time()-t0) + iteration_duration) < time_credit - 5:
+        # Instant du début de l'itération
+        t1 = time()
 
-    while k < 2:
-        # s' = argmin du voisinage actuel
-        operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))] # [encodage d'opération, score]
-                                 for s in neighborhoods[k](sol)]
-        
-        #print(operations_and_scores)
-        optimal_operation, _ = operations_and_scores[np.argmin([o_s[1] for o_s in operations_and_scores])]
+        k = 0
+        while k < 2:
+            # s' = argmin du voisinage actuel
+            operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))] # [encodage d'opération, score]
+                                    for s in neighborhoods[k](sol)]
+            
+            optimal_operation, optimal_score = random.choice(operations_and_scores)
 
-        if k == 0: # permutation des danses
-            dance1, dance2 = optimal_operation
-            new_sol = deepcopy(sol)
-            new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
-            new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
-        else:      # costume en coulisses
-            row, col, flip = optimal_operation
-            new_sol = deepcopy(sol)
-            new_sol.raw[row, col] = 1 - flip
+            if k == 0: # permutation des danses
+                dance1, dance2 = optimal_operation
+                new_sol = deepcopy(sol)
+                new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
+                new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
+            else:      # costume en coulisses
+                row, col, flip = optimal_operation
+                new_sol = deepcopy(sol)
+                new_sol.raw[row, col] = 1 - flip
             
 
-        # s,k = neighborhood_change(s, s', k)
-        if instance.objective_score(new_sol) < instance.objective_score(sol):
-            sol = new_sol
-            k = 0
-        else:
-            k += 1
+            # Hill climbing avec dance_permutation_neighborhood jusqu'à convergence
+            hc_converged = False
+            while not hc_converged:
+                hc_operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))]
+                                            for s in dance_permutation_neighborhood(new_sol)]
+                
+                best_neighbor_operation, best_neighbor_score = hc_operations_and_scores[np.argmin([o_s[1] for o_s in hc_operations_and_scores])]
+
+                if best_neighbor_score < optimal_score:
+                    optimal_score = best_neighbor_score
+
+                    dance1, dance2 = best_neighbor_operation
+                    new_sol = deepcopy(new_sol)
+                    new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
+                    new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
+                else:
+                    hc_converged = True
+            
+
+            # s,k = neighborhood_change(s, s', k)
+            if instance.objective_score(new_sol) < instance.objective_score(sol):
+                sol = new_sol
+                k = 0
+            else:
+                k += 1
+        
+        iteration_duration = time() - t1
     
 
     return sol
