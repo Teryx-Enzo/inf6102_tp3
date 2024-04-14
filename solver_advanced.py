@@ -58,6 +58,32 @@ def backstage_neighborhood(sol: CustomSolution):
             yield repr, mat_cop
 
 
+def perturbation(instance: Instance, sol: Solution, t2: float) -> Solution:
+    """
+    Perturbe une solution en inversant un élément de la matrice de placement. Si on ne trouve pas de perturbation
+    valide pendant 5 secondes, on garde 
+    """
+    cc_mat = sol.raw.copy()
+    idx = np.unravel_index(np.random.choice(cc_mat.size), cc_mat.shape)
+    cc_mat[idx] *= -1
+    cc_mat[idx] += 1
+    valid = instance.is_valid(Solution(cc_mat))
+
+    while not valid and time() - t2 < 5:
+        cc_mat = sol.raw.copy()
+        idx = np.unravel_index(np.random.choice(cc_mat.size), cc_mat.shape)
+        cc_mat[idx] *= -1
+        cc_mat[idx] += 1
+        valid = instance.is_valid(Solution(cc_mat))
+
+    restart = deepcopy(sol)
+
+    if valid: # On retourne la solution sans modification si on n'a pas trouvé pendant 5 secondes
+        restart.raw = cc_mat
+
+    return restart
+
+
 def solve(instance: Instance) -> Solution:
     """
     Write here your solution for the homework
@@ -147,8 +173,11 @@ def solve(instance: Instance) -> Solution:
             best_sol = sol
             best_cost = cost
         
-        iteration_duration = time() - t1
+        t2 = time()
+        iteration_duration = t2 - t1
         print(time() - t0, best_cost)
+
+        sol = perturbation(instance, sol, t2)
     
 
     return best_sol
