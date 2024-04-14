@@ -67,6 +67,7 @@ def solve(instance: Instance) -> Solution:
     Returns:
         Solution: the generated solution
     """
+    alpha = 0.2
     # Métriques de temps d'exécution
     t0 = time()
     iteration_duration = 0
@@ -78,22 +79,21 @@ def solve(instance: Instance) -> Solution:
     else:
         time_credit = 600
 
-    n_dancers, n_costumes = instance.n_dancers, instance.ncostumes
-    sol = CustomSolution(instance.costumes_choreographies_matrix, n_dancers = n_dancers)
+    sol = CustomSolution(instance.costumes_choreographies_matrix, n_dancers = instance.n_dancers)
 
     neighborhoods = [dance_permutation_neighborhood, backstage_neighborhood]
 
+    best_sol = sol
+    best_cost = instance.objective_score(sol)
+    
     while ((time()-t0) + iteration_duration) < time_credit - 5:
         # Instant du début de l'itération
         t1 = time()
 
         k = 0
         while k < 2:
-            # s' = argmin du voisinage actuel
-            operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))] # [encodage d'opération, score]
-                                    for s in neighborhoods[k](sol)]
-            
-            optimal_operation, _ = random.choice(operations_and_scores)
+            # Sélection aléatoire dans le voisinage actuel
+            optimal_operation, _ = random.choice(list(neighborhoods[k](sol)))
 
             new_sol = deepcopy(sol)
             if k == 0: # permutation des danses
@@ -108,7 +108,7 @@ def solve(instance: Instance) -> Solution:
             # VND à partir de new_sol pour obtenir un minimum local pour tous les voisinages
             kvnd = 0
             while kvnd < 2:
-                vnd_operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))]
+                vnd_operations_and_scores = [[s[0], instance.objective_score(Solution(s[1]))] # [encodage d'opération, score]
                                             for s in neighborhoods[kvnd](new_sol)]
                 
                 vnd_optimal_operation, _ = vnd_operations_and_scores[np.argmin([o_s[1] for o_s in vnd_operations_and_scores])]
@@ -121,22 +121,34 @@ def solve(instance: Instance) -> Solution:
                 else:      # costume en coulisses
                     row, col, flip = vnd_optimal_operation
                     vnd_new_sol.raw[row, col] = 1 - flip
+
+                vnd_new_cost = instance.objective_score(vnd_new_sol)
+                new_cost = instance.objective_score(new_sol)
+                vnd_delta = vnd_new_cost - new_cost
                 
-                if instance.objective_score(vnd_new_sol) < instance.objective_score(new_sol):
+                if vnd_new_cost < new_cost + alpha*vnd_delta:
                     new_sol = vnd_new_sol
                     kvnd = 0
                 else:
                     kvnd += 1
             
-
-            # s,k = neighborhood_change(s, s', k)
-            if instance.objective_score(new_sol) < instance.objective_score(sol):
+            cost = instance.objective_score(sol)
+            new_cost = instance.objective_score(new_sol)
+            delta = new_cost - cost
+            
+            if new_cost < cost + alpha*delta:
                 sol = new_sol
                 k = 0
             else:
                 k += 1
         
+        cost = instance.objective_score(sol)
+        if cost < best_cost:
+            best_sol = sol
+            best_cost = cost
+        
         iteration_duration = time() - t1
+        print(time() - t0, best_cost)
     
 
-    return sol
+    return best_sol
