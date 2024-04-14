@@ -58,30 +58,50 @@ def backstage_neighborhood(sol: CustomSolution):
             yield repr, mat_cop
 
 
-def perturbation(instance: Instance, sol: Solution, t2: float) -> Solution:
+def perturbation(instance: Instance, sol: CustomSolution, t2: float) -> Solution:
     """
     Perturbe une solution en inversant un élément de la matrice de placement. Si on ne trouve pas de perturbation
     valide pendant 5 secondes, on garde 
     """
-    cc_mat = sol.raw.copy()
-    idx = np.unravel_index(np.random.choice(cc_mat.size), cc_mat.shape)
-    cc_mat[idx] *= -1
-    cc_mat[idx] += 1
-    valid = instance.is_valid(Solution(cc_mat))
+    sol_size = sol.raw.size
+    max_perturbation_size = np.random.randint(1, int(sol_size*0.1))
+
+    sol_cop = deepcopy(sol)
+    perturbation_size = np.random.randint(max_perturbation_size)
+    indices = np.random.choice(sol_size, perturbation_size)
+    for index in indices:
+        idx = np.unravel_index(index, sol_cop.raw.shape)
+        sol_cop.raw[idx] *= -1
+        sol_cop.raw[idx] += 1
+    
+    valid = instance.is_valid(sol_cop)
 
     while not valid and time() - t2 < 5:
-        cc_mat = sol.raw.copy()
-        idx = np.unravel_index(np.random.choice(cc_mat.size), cc_mat.shape)
-        cc_mat[idx] *= -1
-        cc_mat[idx] += 1
-        valid = instance.is_valid(Solution(cc_mat))
-
-    restart = deepcopy(sol)
+        sol_cop = deepcopy(sol)
+        perturbation_size = np.random.randint(max_perturbation_size)
+        indices = np.random.choice(sol_size, perturbation_size)
+        for index in indices:
+            idx = np.unravel_index(index, sol_cop.raw.shape)
+            sol_cop.raw[idx] *= -1
+            sol_cop.raw[idx] += 1
+        valid = instance.is_valid(sol_cop)
 
     if valid: # On retourne la solution sans modification si on n'a pas trouvé pendant 5 secondes
-        restart.raw = cc_mat
+        temp_sol = Solution(sol_cop.raw)
 
-    return restart
+        adj_matrix = np.zeros((len(instance.choreography2costume_int),len(temp_sol.choreography2costume_int)))
+        for i,x in enumerate(instance.choreography2costume_int.values()):
+            for j,y in enumerate(temp_sol.choreography2costume_int.values()):
+                if x&y==x:
+                    adj_matrix[i][j]=1
+        
+        _, col_ind = linear_sum_assignment(-adj_matrix.T)
+
+        sol_cop.choreographies_order = col_ind.tolist()
+
+        return sol_cop
+    else:
+        return sol
 
 
 def solve(instance: Instance) -> Solution:
