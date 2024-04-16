@@ -1,3 +1,6 @@
+# Enzo Pelous           2306632
+# Pierre Gallou-Guyot   2227094
+
 from utils import *
 import random
 from copy import deepcopy
@@ -23,6 +26,14 @@ class CustomSolution(Solution):
 
 def dance_permutation_neighborhood(sol: CustomSolution):
     """
+    Génère des voisins d'une solution en considérant tous les échanges de colonnes de la matrice costumes chorégraphies.
+
+    Args:
+        sol (CustomSolution) : la solution actuelle du problème
+    
+    Yields:
+        operation (Tuple[int, int]) : les indices des colonnes col1 et col2 échangées dans mat_cop
+        mat_cop (np.ndarray) : une copie de la matrice costumes chorégraphies de sol dont les colonnes col1 et col2 ont été échangées
     """
     cc_mat = sol.raw
     
@@ -35,6 +46,14 @@ def dance_permutation_neighborhood(sol: CustomSolution):
 
 def backstage_neighborhood(sol: CustomSolution):
     """
+    Génère des voisins d'une solution en considérant toutes les inversions des 1 facultatifs et des 0 de colonnes non pleines.
+
+    Args:
+        sol (CustomSolution) : la solution actuelle du problème
+    
+    Yields:
+        repr (List[int, int, int]) : les coordonées i,j de l'élément à inverser, et sa valeur (0 ou 1)
+        mat_cop (np.ndarray) : une copie de la matrice costumes chorégraphies de sol dont l'élément i,j a été changé en 1 ou en 0
     """
     cc_mat = sol.raw
 
@@ -58,27 +77,27 @@ def backstage_neighborhood(sol: CustomSolution):
             yield repr, mat_cop
 
 
-def perturbation(instance: Instance, sol: CustomSolution, t2: float) -> Solution:
+def perturbation(instance: Instance, sol: CustomSolution, t2: float) -> CustomSolution:
     """
-    Perturbe une solution en inversant un élément de la matrice de placement. Si on ne trouve pas de perturbation
-    valide pendant 5 secondes, on garde 
+    Perturbe une solution en inversant jusqu'à 20% des éléments de la matrice chorégraphies-costumes d'une solution.
+    Le vecteur des chorégraphies est mis à jour au besoin.
+    Si on ne trouve pas de perturbation valide pendant 5 secondes, on garde la matrice actuelle.
+
+    Args:
+        instance (Instance) : l'instance du problème à résoudre
+        sol (CustomSolution) : la solution actuelle du problème
+        t2 (float) : le temps d'horloge à la fin de la phase de recherche locale
+
+    Returns:
+        sol (CustomSolution) : la solution perturbée
     """
     sol_size = sol.raw.size
-    max_perturbation_size = np.random.randint(1, int(sol_size*0.1))
+    max_perturbation_size = int(sol_size*0.2) #np.random.randint(1, int(sol_size*0.5))
 
-    sol_cop = deepcopy(sol)
-    perturbation_size = np.random.randint(max_perturbation_size)
-    indices = np.random.choice(sol_size, perturbation_size)
-    for index in indices:
-        idx = np.unravel_index(index, sol_cop.raw.shape)
-        sol_cop.raw[idx] *= -1
-        sol_cop.raw[idx] += 1
-    
-    valid = instance.is_valid(sol_cop)
-
+    valid = False
     while not valid and time() - t2 < 5:
         sol_cop = deepcopy(sol)
-        perturbation_size = np.random.randint(max_perturbation_size)
+        perturbation_size = np.random.randint(2, max_perturbation_size+1) # Borne supérieure exclue avec randint
         indices = np.random.choice(sol_size, perturbation_size)
         for index in indices:
             idx = np.unravel_index(index, sol_cop.raw.shape)
@@ -87,6 +106,8 @@ def perturbation(instance: Instance, sol: CustomSolution, t2: float) -> Solution
         valid = instance.is_valid(sol_cop)
 
     if valid: # On retourne la solution sans modification si on n'a pas trouvé pendant 5 secondes
+        # Mise à jour du vecteur choreographies_order de la nouvelle solution, avec assignation bipartite entre les colonnes
+        # de raw et celles de la matrice initiale.
         temp_sol = Solution(sol_cop.raw)
 
         adj_matrix = np.zeros((len(instance.choreography2costume_int),len(temp_sol.choreography2costume_int)))
@@ -113,7 +134,6 @@ def solve(instance: Instance) -> Solution:
     Returns:
         Solution: the generated solution
     """
-    alpha = 0.2
     # Métriques de temps d'exécution
     t0 = time()
     iteration_duration = 0
@@ -128,6 +148,7 @@ def solve(instance: Instance) -> Solution:
     sol = CustomSolution(instance.costumes_choreographies_matrix, n_dancers = instance.n_dancers)
 
     neighborhoods = [dance_permutation_neighborhood, backstage_neighborhood]
+    alpha = 0.35
 
     best_sol = sol
     best_cost = instance.objective_score(sol)
@@ -139,15 +160,15 @@ def solve(instance: Instance) -> Solution:
         k = 0
         while k < 2:
             # Sélection aléatoire dans le voisinage actuel
-            optimal_operation, _ = random.choice(list(neighborhoods[k](sol)))
+            operation, _ = random.choice(list(neighborhoods[k](sol)))
 
             new_sol = deepcopy(sol)
             if k == 0: # permutation des danses
-                dance1, dance2 = optimal_operation
+                dance1, dance2 = operation
                 new_sol.raw[:, [dance2, dance1]] = new_sol.raw[:, [dance1, dance2]]
                 new_sol.choreographies_order[dance2], new_sol.choreographies_order[dance1] = new_sol.choreographies_order[dance1], new_sol.choreographies_order[dance2]
             else:      # costume en coulisses
-                row, col, flip = optimal_operation
+                row, col, flip = operation
                 new_sol.raw[row, col] = 1 - flip
             
 
@@ -170,9 +191,8 @@ def solve(instance: Instance) -> Solution:
 
                 vnd_new_cost = instance.objective_score(vnd_new_sol)
                 new_cost = instance.objective_score(new_sol)
-                vnd_delta = vnd_new_cost - new_cost
                 
-                if vnd_new_cost < new_cost + alpha*vnd_delta:
+                if vnd_new_cost < new_cost:
                     new_sol = vnd_new_sol
                     kvnd = 0
                 else:
@@ -180,8 +200,9 @@ def solve(instance: Instance) -> Solution:
             
             cost = instance.objective_score(sol)
             new_cost = instance.objective_score(new_sol)
-            delta = new_cost - cost
+            delta = np.sum((new_sol.raw - sol.raw)**2) # Distance entre les deux matrices de solution
             
+            # Critère d'acceptation biaisé
             if new_cost < cost + alpha*delta:
                 sol = new_sol
                 k = 0
@@ -195,8 +216,8 @@ def solve(instance: Instance) -> Solution:
         
         t2 = time()
         iteration_duration = t2 - t1
-        print(time() - t0, best_cost)
 
+        # ILS : perturbation de la solution avant de recommencer la recherche locale
         sol = perturbation(instance, sol, t2)
     
 
